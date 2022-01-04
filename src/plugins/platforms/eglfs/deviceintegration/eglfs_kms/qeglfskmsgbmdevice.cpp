@@ -56,32 +56,51 @@ Q_DECLARE_LOGGING_CATEGORY(qLcEglfsKmsDebug)
 QEglFSKmsGbmDevice::QEglFSKmsGbmDevice(QKmsScreenConfig *screenConfig, const QString &path)
     : QEglFSKmsDevice(screenConfig, path)
     , m_gbm_device(nullptr)
+    , m_lease(nullptr)
     , m_globalCursor(nullptr)
 {
 }
 
 bool QEglFSKmsGbmDevice::open()
 {
+    QByteArray lease = qgetenv("QT_QPA_EGLFS_DRMLEASE");
+    int drmfd = -1;
     Q_ASSERT(fd() == -1);
     Q_ASSERT(m_gbm_device == nullptr);
 
-    int fd = qt_safe_open(devicePath().toLocal8Bit().constData(), O_RDWR | O_CLOEXEC);
-    if (fd == -1) {
-        qErrnoWarning("Could not open DRM device %s", qPrintable(devicePath()));
-        return false;
+    if (lease.isEmpty()) {
+        drmfd = qt_safe_open(devicePath().toLocal8Bit().constData(), O_RDWR | O_CLOEXEC);
+        if (drmfd == -1) {
+            qErrnoWarning("Could not open DRM device %s", qPrintable(devicePath()));
+            return false;
+        }
+    } else {
+        QString lease_path(QString::fromUtf8(lease));
+        
+        m_lease = ::dlm_get_lease(lease_path.toLocal8Bit().constData());
+        if (m_lease == nullptr) {
+            qErrnoWarning("Could not open DRM lease %s", qPrintable(lease_path));
+            return false;
+        }
+        drmfd = ::dlm_lease_fd(m_lease);
     }
 
-    qCDebug(qLcEglfsKmsDebug) << "Creating GBM device for file descriptor" << fd
+    qCDebug(qLcEglfsKmsDebug) << "Creating GBM device for file descriptor" << drmfd
                               << "obtained from" << devicePath();
-    m_gbm_device = gbm_create_device(fd);
+    m_gbm_device = gbm_create_device(drmfd);
     if (!m_gbm_device) {
         qErrnoWarning("Could not create GBM device");
-        qt_safe_close(fd);
-        fd = -1;
+        if (m_lease) {
+            ::dlm_release_lease(m_lease);
+            m_lease = nullptr;
+        } else {
+            qt_safe_close(drmfd);
+        }
+        drmfd = -1;
         return false;
     }
 
-    setFd(fd);
+    setFd(drmfd);
 
     m_eventReader.create(this);
 
@@ -99,7 +118,11 @@ void QEglFSKmsGbmDevice::close()
         m_gbm_device = nullptr;
     }
 
-    if (fd() != -1) {
+    if (m_lease) {
+        setFd(-1);
+        ::dlm_release_lease(m_lease);
+        m_lease = nullptr;
+    } else if (fd() != -1) {
         qt_safe_close(fd());
         setFd(-1);
     }

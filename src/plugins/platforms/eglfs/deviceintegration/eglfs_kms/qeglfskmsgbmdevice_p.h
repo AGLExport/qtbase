@@ -57,6 +57,7 @@
 #include <private/qeglfskmsdevice_p.h>
 
 #include <gbm.h>
+#include <dlmclient.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -91,6 +92,9 @@ private:
     Q_DISABLE_COPY(QEglFSKmsGbmDevice)
 
     gbm_device *m_gbm_device;
+
+    // only used for DRM lease
+    struct dlm_lease *m_lease;
 
     QEglFSKmsGbmCursor *m_globalCursor;
 };

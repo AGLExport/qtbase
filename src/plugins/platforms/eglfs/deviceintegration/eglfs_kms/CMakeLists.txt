@@ -23,6 +23,7 @@ qt_internal_add_module(EglFsKmsGbmSupportPrivate
         Qt::GuiPrivate
         Qt::KmsSupportPrivate
         gbm::gbm
+        Libdlmclient::Libdlmclient
 )
 #####################################################################
 ## QEglFSKmsGbmIntegrationPlugin Plugin:
@@ -44,6 +45,7 @@ qt_internal_add_plugin(QEglFSKmsGbmIntegrationPlugin
         Qt::GuiPrivate
         Qt::KmsSupportPrivate
         gbm::gbm
+        Libdlmclient::Libdlmclient
 )
 
 #### Keys ignored in scope 3:.:.:eglfs_kms-plugin.pro:<TRUE>:
